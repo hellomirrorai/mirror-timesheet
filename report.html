@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>mirror. timesheet</title>
+  <title>mirror. Timesheet</title>
   <style>
     /* ── Reset ── */
     *, *::before, *::after {
@@ -213,10 +213,11 @@
       box-shadow: 0 2px 20px rgba(0, 0, 0, 0.12);
     }
 
-    .report-logo {
-      font-size: 22px;
-      font-weight: 400;
-      margin-bottom: 10px;
+    .report-logo-img {
+      height: 28px;
+      width: auto;
+      display: block;
+      margin-bottom: 8px;
     }
 
     .report-logo-rule {
@@ -342,20 +343,23 @@
       }
       #toggl-section { display: none !important; }
     }
+
+    #rpt-people-table td:nth-child(2) { width: 12%; }
+    #rpt-people-table td:last-child    { text-align: right; width: 14%; }
   </style>
 </head>
 <body>
 
   <!-- Top Bar -->
   <div id="topbar">
-    <h1 id="topbar-title">mirror. timesheet</h1>
-    <label id="btn-upload" class="btn-like" for="file-input">Carica CSV</label>
+    <h1 id="topbar-title">mirror. Timesheet</h1>
+    <label id="btn-upload" class="btn-like" for="file-input">Load CSV</label>
     <input type="file" id="file-input" accept=".csv" style="display:none">
-    <button id="btn-print">Stampa / PDF</button>
+    <button id="btn-print">Export PDF</button>
   </div>
 
   <!-- Drop Overlay -->
-  <div id="drop-overlay">Rilascia il CSV qui</div>
+  <div id="drop-overlay">Drop CSV here</div>
 
   <!-- App -->
   <div id="app">
@@ -367,57 +371,65 @@
         <h2 style="margin-bottom:10px;">Toggl Live</h2>
         <div class="filter-group" style="margin-bottom:8px;">
           <span class="filter-label">API Token</span>
-          <input type="password" id="toggl-token" placeholder="da Profilo → API Token" autocomplete="off">
+          <input type="password" id="toggl-token" placeholder="from Profile → API Token" autocomplete="off">
         </div>
         <div class="filter-group" style="margin-bottom:8px;">
           <span class="filter-label">Workspace ID</span>
-          <input type="text" id="toggl-workspace" placeholder="es. 1234567" autocomplete="off">
+          <input type="text" id="toggl-workspace" placeholder="e.g. 1234567" autocomplete="off">
         </div>
         <div class="filter-group" style="margin-bottom:8px;">
-          <span class="filter-label">Da</span>
+          <span class="filter-label">From</span>
           <input type="date" id="toggl-from">
         </div>
         <div class="filter-group" style="margin-bottom:8px;">
-          <span class="filter-label">A</span>
+          <span class="filter-label">To</span>
           <input type="date" id="toggl-to">
         </div>
-        <button id="btn-toggl-load" style="width:100%;margin-bottom:6px;">&#9654; Carica da Toggl</button>
+        <button id="btn-toggl-load" style="width:100%;margin-bottom:6px;">&#9654; Load from Toggl</button>
         <div id="toggl-status"></div>
         <hr style="margin:14px 0;border:none;border-top:1px solid #e0e0e0;">
       </div>
 
       <!-- Filter: Date -->
       <div class="filter-group">
-        <span class="filter-label">Data</span>
-        <input type="date" id="filter-date-from" title="Da">
-        <input type="date" id="filter-date-to" title="A">
+        <span class="filter-label">Date</span>
+        <input type="date" id="filter-date-from" title="From">
+        <input type="date" id="filter-date-to" title="To">
       </div>
 
       <!-- Filter: Progetto -->
       <div class="filter-group">
-        <span class="filter-label">Progetto</span>
+        <span class="filter-label">Project</span>
         <select id="filter-project"></select>
       </div>
 
       <!-- Filter: Membro -->
       <div class="filter-group">
-        <span class="filter-label">Membro</span>
+        <span class="filter-label">Member</span>
         <div class="checkbox-list" id="filter-members"></div>
-        <button class="toggle-all" data-target="members">seleziona tutto</button>
+        <button class="toggle-all" data-target="members">select all</button>
       </div>
 
       <!-- Filter: Hub / Client -->
       <div class="filter-group">
         <span class="filter-label">Hub / Client</span>
         <div class="checkbox-list" id="filter-clients"></div>
-        <button class="toggle-all" data-target="clients">seleziona tutto</button>
+        <button class="toggle-all" data-target="clients">select all</button>
       </div>
 
       <!-- Filter: Tag / Phase -->
       <div class="filter-group">
         <span class="filter-label">Tag / Phase</span>
         <div class="checkbox-list" id="filter-tags"></div>
-        <button class="toggle-all" data-target="tags">seleziona tutto</button>
+        <button class="toggle-all" data-target="tags">select all</button>
+      </div>
+
+
+      <div class="filter-group">
+        <span class="filter-label">Roles</span>
+        <small style="display:block;font-size:10px;color:#888;margin-bottom:4px;">One role per line: RoleName: Person1, Person2</small>
+        <textarea id="role-config" rows="5" style="width:100%;font-size:11px;border:1px solid #ccc;padding:4px;font-family:inherit;resize:vertical;" placeholder="e.g.&#10;Architects: John, Jane&#10;Heads: Alice&#10;CEO: Bob"></textarea>
+        <button onclick="renderReport()" style="width:100%;margin-top:4px;font-size:11px;padding:4px;">Apply Roles</button>
       </div>
 
     </aside>
@@ -427,13 +439,13 @@
 
       <!-- Empty State -->
       <div id="empty-state">
-        <p>Trascina qui un file CSV Toggl</p>
-        <p>oppure clicca &ldquo;Carica CSV&rdquo; in alto</p>
+        <p>Drop a Toggl CSV file here</p>
+        <p>or click &ldquo;Load CSV&rdquo; above</p>
       </div>
 
       <!-- Report Card -->
       <div id="report">
-        <div class="report-logo">mirror.</div>
+        <img class="report-logo-img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA2MAAAClCAYAAADRaCU9AAAFUWlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4KPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iWE1QIENvcmUgNS41LjAiPgogPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4KICA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIgogICAgeG1sbnM6ZGM9Imh0dHA6Ly9wdXJsLm9yZy9kYy9lbGVtZW50cy8xLjEvIgogICAgeG1sbnM6ZXhpZj0iaHR0cDovL25zLmFkb2JlLmNvbS9leGlmLzEuMC8iCiAgICB4bWxuczp0aWZmPSJodHRwOi8vbnMuYWRvYmUuY29tL3RpZmYvMS4wLyIKICAgIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIKICAgIHhtbG5zOnhtcD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLyIKICAgIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIgogICAgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIKICAgZXhpZjpQaXhlbFhEaW1lbnNpb249Ijg2NyIKICAgZXhpZjpQaXhlbFlEaW1lbnNpb249IjE2NSIKICAgZXhpZjpDb2xvclNwYWNlPSIxIgogICB0aWZmOkltYWdlV2lkdGg9Ijg2NyIKICAgdGlmZjpJbWFnZUxlbmd0aD0iMTY1IgogICB0aWZmOlJlc29sdXRpb25Vbml0PSIyIgogICB0aWZmOlhSZXNvbHV0aW9uPSI3Mi8xIgogICB0aWZmOllSZXNvbHV0aW9uPSI3Mi8xIgogICBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIgogICBwaG90b3Nob3A6SUNDUHJv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" alt="mirror.">
         <hr class="report-logo-rule">
         <div class="report-title">Timesheet</div>
         <div id="rpt-project" class="report-project"></div>
@@ -454,6 +466,26 @@
           </thead>
           <tbody id="rpt-tbody"></tbody>
         </table>
+
+<div style="margin-top: 32px;">
+  <div class="entries-title">Phases</div>
+  <table class="entries-table" id="rpt-phases-table">
+    <thead>
+      <tr>
+        <th style="width:30%">Phase</th>
+        <th style="text-align:right">Duration</th>
+      </tr>
+    </thead>
+    <tbody id="rpt-phases-tbody"></tbody>
+  </table>
+</div>
+
+<div style="margin-top: 32px;" id="rpt-people-section">
+  <div class="entries-title">People</div>
+  <table class="entries-table" id="rpt-people-table">
+    <tbody id="rpt-people-tbody"></tbody>
+  </table>
+</div>
       </div>
 
     </main>
@@ -526,6 +558,20 @@
       return [...new Set(arr.filter(v => v !== undefined))].sort();
     }
 
+    function parseRoleConfig() {
+      const text = document.getElementById('role-config').value;
+      const roleMap = {}; // memberName → roleName
+      text.split('
+').forEach(line => {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx < 0) return;
+        const role = line.slice(0, colonIdx).trim();
+        const members = line.slice(colonIdx + 1).split(',').map(m => m.trim()).filter(Boolean);
+        members.forEach(m => { roleMap[m] = role; });
+      });
+      return roleMap;
+    }
+
     /* global store */
     let allRows = [];
 
@@ -581,11 +627,11 @@
       const statusEl    = document.getElementById('toggl-status');
 
       if (!token || !workspaceId || !startDate || !endDate) {
-        statusEl.textContent = 'Compila tutti i campi.';
+        statusEl.textContent = 'Please fill in all fields.';
         return;
       }
 
-      statusEl.textContent = 'Connessione a Toggl...';
+      statusEl.textContent = 'Connecting to Toggl...';
       document.getElementById('btn-toggl-load').disabled = true;
 
       const auth    = 'Basic ' + btoa(token + ':api_token');
@@ -594,18 +640,18 @@
 
       try {
         // ── 1. Projects (to resolve project_id → name + client_id) ──
-        statusEl.textContent = 'Carico progetti...';
+        statusEl.textContent = 'Loading projects...';
         const projResp = await fetch(
           base + '/api/v9/workspaces/' + workspaceId + '/projects?active=both&per_page=200',
           { headers }
         );
-        if (!projResp.ok) throw new Error('Progetti: ' + projResp.status + ' ' + projResp.statusText);
+        if (!projResp.ok) throw new Error('Projects: ' + projResp.status + ' ' + projResp.statusText);
         const projects = await projResp.json();
         const projMap = {};
         projects.forEach(p => { projMap[p.id] = { name: p.name || '', clientId: p.client_id }; });
 
         // ── 2. Clients (to resolve client_id → name) ──
-        statusEl.textContent = 'Carico clienti...';
+        statusEl.textContent = 'Loading clients...';
         const cliResp = await fetch(
           base + '/api/v9/workspaces/' + workspaceId + '/clients',
           { headers }
@@ -617,7 +663,7 @@
         }
 
         // ── 3. Time entries (paginated via X-Next-Row-Number) ──
-        statusEl.textContent = 'Carico voci...';
+        statusEl.textContent = 'Loading entries...';
         const rawEntries = [];
         let firstRow = 1;
 
@@ -635,7 +681,7 @@
               })
             }
           );
-          if (!resp.ok) throw new Error('Voci: ' + resp.status + ' ' + resp.statusText);
+          if (!resp.ok) throw new Error('Entries: ' + resp.status + ' ' + resp.statusText);
           const page = await resp.json();
           if (!Array.isArray(page) || page.length === 0) break;
           rawEntries.push(...page);
@@ -689,14 +735,14 @@
           });
         });
 
-        statusEl.textContent = allRows.length + ' voci caricate.';
+        statusEl.textContent = allRows.length + ' entries loaded.';
         populateFilters();
         renderReport();
 
       } catch (err) {
-        statusEl.textContent = 'Errore: ' + err.message;
+        statusEl.textContent = 'Error: ' + err.message;
         if (err.message.includes('Failed to fetch') || err.message.includes('CORS')) {
-          statusEl.textContent += ' (CORS: apri il file da un server locale — vedi sotto)';
+          statusEl.textContent += ' (CORS: open the file from a local server)';
         }
       } finally {
         document.getElementById('btn-toggl-load').disabled = false;
@@ -724,7 +770,7 @@
       while (sel.firstChild) sel.removeChild(sel.firstChild);
       const allOpt = document.createElement('option');
       allOpt.value = '';
-      allOpt.textContent = '— tutti —';
+      allOpt.textContent = '— all —';
       sel.appendChild(allOpt);
       unique(rows.map(r => r['Project'])).forEach(p => {
         const opt = document.createElement('option');
@@ -894,6 +940,87 @@
       trTotal.appendChild(tdLabel);
       trTotal.appendChild(tdVal);
       tbody.appendChild(trTotal);
+
+      // ── Phases summary ──
+      const phasesTbody = document.getElementById('rpt-phases-tbody');
+      while (phasesTbody.firstChild) phasesTbody.removeChild(phasesTbody.firstChild);
+
+      const phaseMap = {};
+      rows.forEach(r => {
+        const phase = r['Tags'] || '—';
+        phaseMap[phase] = (phaseMap[phase] || 0) + durationToSec(r['Duration']);
+      });
+      Object.keys(phaseMap).sort().forEach((phase, i) => {
+        const tr = document.createElement('tr');
+        tr.className = 'entry-row' + (i === 0 ? ' group-start' : '');
+        const tdPhase = document.createElement('td');
+        tdPhase.textContent = phase;
+        const tdDur = document.createElement('td');
+        tdDur.textContent = secToHHMM(phaseMap[phase]);
+        tr.appendChild(tdPhase);
+        tr.appendChild(tdDur);
+        phasesTbody.appendChild(tr);
+      });
+
+      // ── People summary ──
+      const peopleTbody = document.getElementById('rpt-people-tbody');
+      while (peopleTbody.firstChild) peopleTbody.removeChild(peopleTbody.firstChild);
+
+      const roleMap = parseRoleConfig();
+
+      // Build: { roleName: { memberName: { phase: totalSec } } }
+      const roleData = {};
+      const unassignedRole = 'Team';
+
+      rows.forEach(r => {
+        const member = r['User'] || '';
+        const phase  = r['Tags'] || '—';
+        const role   = roleMap[member] || unassignedRole;
+        if (!roleData[role]) roleData[role] = {};
+        if (!roleData[role][member]) roleData[role][member] = {};
+        roleData[role][member][phase] = (roleData[role][member][phase] || 0) + durationToSec(r['Duration']);
+      });
+
+      // Render: role header row, then member+phase rows
+      const roleOrder = Object.keys(roleData).sort();
+      roleOrder.forEach(role => {
+        // Role header row
+        const trHeader = document.createElement('tr');
+        trHeader.className = 'entry-row group-start';
+        const thRole = document.createElement('td');
+        thRole.textContent = role;
+        thRole.style.fontWeight = '700';
+        const thPhase = document.createElement('td');
+        thPhase.textContent = 'Phase';
+        thPhase.style.fontWeight = '700';
+        const thDur = document.createElement('td');
+        thDur.textContent = 'Duration';
+        thDur.style.fontWeight = '700';
+        trHeader.appendChild(thRole);
+        trHeader.appendChild(thPhase);
+        trHeader.appendChild(thDur);
+        peopleTbody.appendChild(trHeader);
+
+        // Member rows (sorted by member name, then phase)
+        const members = Object.keys(roleData[role]).sort();
+        members.forEach(member => {
+          const phases = Object.keys(roleData[role][member]).sort();
+          phases.forEach(phase => {
+            const tr = document.createElement('tr');
+            tr.className = 'entry-row';
+            const tdMember = document.createElement('td');
+            tdMember.textContent = member;
+            const tdPhase = document.createElement('td');
+            tdPhase.textContent = phase;
+            const tdDur = document.createElement('td');
+            tdDur.textContent = secToHHMM(roleData[role][member][phase]);
+            tr.appendChild(tdMember);
+            tr.appendChild(tdPhase);
+            tr.appendChild(tdDur);
+            peopleTbody.appendChild(tr);
+          });
+        });
+      });
     }
   </script>
 
