@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mirror. timesheet</title>
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ── Body ── */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 13px;
+      background: #f0f0f0;
+    }
+
+    /* ── Top Bar ── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      padding: 10px 16px;
+    }
+
+    #topbar-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-right: auto;
+    }
+
+    /* ── Buttons ── */
+    button,
+    .btn-like {
+      padding: 6px 14px;
+      font-size: 12px;
+      border: 1px solid #000;
+      background: #fff;
+      color: #000;
+      cursor: pointer;
+    }
+
+    button:hover,
+    .btn-like:hover {
+      background: #000;
+      color: #fff;
+    }
+
+    #btn-print {
+      background: #000;
+      color: #fff;
+    }
+
+    #btn-print:hover {
+      background: #333;
+    }
+
+    /* ── App Layout ── */
+    #app {
+      display: flex;
+      flex-direction: row;
+      height: calc(100vh - 41px);
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: #fff;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .filter-group {
+      margin-bottom: 20px;
+    }
+
+    .filter-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #333;
+      margin-bottom: 6px;
+    }
+
+    .filter-group input[type="date"],
+    .filter-group input[type="text"],
+    .filter-group select {
+      width: 100%;
+      padding: 4px 6px;
+      font-size: 12px;
+      border: 1px solid #ccc;
+    }
+
+    .filter-group input[type="date"] + input[type="date"] {
+      margin-top: 4px;
+    }
+
+    .checkbox-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+
+    .checkbox-list label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .toggle-all {
+      font-size: 10px;
+      color: #666;
+      text-decoration: underline;
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 0;
+      margin-top: 4px;
+    }
+
+    .toggle-all:hover {
+      background: none;
+      color: #000;
+    }
+
+    /* ── Preview Wrap ── */
+    #preview-wrap {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Drop Overlay ── */
+    #drop-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.85);
+      border: 3px dashed #000;
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+      font-weight: 700;
+      pointer-events: none;
+    }
+
+    #drop-overlay.active {
+      display: flex;
+    }
+
+    /* ── Empty State ── */
+    #empty-state {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      color: #999;
+      text-align: center;
+    }
+
+    #empty-state p:first-child {
+      font-size: 15px;
+    }
+
+    #empty-state p:last-child {
+      font-size: 12px;
+    }
+
+    /* ── Report Card ── */
+    #report {
+      display: none;
+      width: 210mm;
+      min-height: 297mm;
+      background: #fff;
+      padding: 20mm;
+      box-shadow: 0 2px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    .report-logo {
+      font-size: 22px;
+      font-weight: 400;
+      margin-bottom: 10px;
+    }
+
+    .report-logo-rule {
+      border: none;
+      border-top: 1px solid #000;
+      margin-bottom: 14px;
+    }
+
+    .report-title {
+      font-size: 15px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+
+    .report-project {
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .report-period {
+      font-size: 13px;
+      color: #444;
+      margin-bottom: 16px;
+    }
+
+    .report-total-hours {
+      font-size: 42px;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+
+    .entries-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    /* ── Entries Table ── */
+    .entries-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .entries-table th {
+      text-align: left;
+      padding: 5px 6px 5px 0;
+      font-weight: 700;
+      font-size: 11px;
+      border-bottom: 2px solid #000;
+    }
+
+    .entries-table th:last-child {
+      text-align: right;
+    }
+
+    tr.entry-row td {
+      padding: 5px 6px 5px 0;
+      border-bottom: 0.5px solid #bbb;
+      vertical-align: top;
+    }
+
+    tr.entry-row td:last-child {
+      text-align: right;
+    }
+
+    tr.group-start td {
+      border-top: 2px solid #000;
+    }
+
+    tr.total-row td {
+      border-top: 2px solid #000;
+      border-bottom: none;
+      padding-top: 7px;
+      font-weight: 700;
+    }
+
+    /* ── Print / PDF ── */
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      #topbar,
+      #sidebar,
+      #drop-overlay {
+        display: none !important;
+      }
+
+      #app {
+        display: block;
+        height: auto;
+      }
+
+      #preview-wrap {
+        padding: 0;
+        display: block;
+      }
+
+      #report {
+        display: block !important;
+        width: 100%;
+        min-height: auto;
+        padding: 0;
+        box-shadow: none;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 20mm;
+      }
+
+      .entries-table {
+        page-break-inside: auto;
+      }
+
+      .entries-table tr {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div id="topbar">
+    <span id="topbar-title">mirror. timesheet</span>
+    <label id="btn-upload" class="btn-like" for="file-input">Carica CSV</label>
+    <input type="file" id="file-input" accept=".csv" style="display:none">
+    <button id="btn-print">Stampa / PDF</button>
+  </div>
+
+  <!-- Drop Overlay -->
+  <div id="drop-overlay">Rilascia il CSV qui</div>
+
+  <!-- App -->
+  <div id="app">
+
+    <!-- Sidebar -->
+    <aside id="sidebar">
+
+      <!-- Filter: Date -->
+      <div class="filter-group">
+        <span class="filter-label">Data</span>
+        <input type="date" id="filter-date-from" title="Da">
+        <input type="date" id="filter-date-to" title="A">
+      </div>
+
+      <!-- Filter: Progetto -->
+      <div class="filter-group">
+        <span class="filter-label">Progetto</span>
+        <select id="filter-project"></select>
+      </div>
+
+      <!-- Filter: Membro -->
+      <div class="filter-group">
+        <span class="filter-label">Membro</span>
+        <div class="checkbox-list" id="list-member"></div>
+        <button class="toggle-all" data-target="members">seleziona tutto</button>
+      </div>
+
+      <!-- Filter: Hub / Client -->
+      <div class="filter-group">
+        <span class="filter-label">Hub / Client</span>
+        <div class="checkbox-list" id="list-client"></div>
+        <button class="toggle-all" data-target="clients">seleziona tutto</button>
+      </div>
+
+      <!-- Filter: Tag / Phase -->
+      <div class="filter-group">
+        <span class="filter-label">Tag / Phase</span>
+        <div class="checkbox-list" id="list-tag"></div>
+        <button class="toggle-all" data-target="tags">seleziona tutto</button>
+      </div>
+
+    </aside>
+
+    <!-- Preview Wrap -->
+    <main id="preview-wrap">
+
+      <!-- Empty State -->
+      <div id="empty-state">
+        <p>Trascina qui un file CSV Toggl</p>
+        <p>oppure clicca &ldquo;Carica CSV&rdquo; in alto</p>
+      </div>
+
+      <!-- Report Card -->
+      <div id="report">
+        <div class="report-logo">mirror.</div>
+        <hr class="report-logo-rule">
+        <div class="report-title">Timesheet</div>
+        <div id="rpt-project" class="report-project"></div>
+        <div id="rpt-period" class="report-period"></div>
+        <div id="rpt-total" class="report-total-hours"></div>
+        <div class="entries-title">Time Entries</div>
+        <table class="entries-table">
+          <thead>
+            <tr>
+              <th>Phase</th>
+              <th>Member</th>
+              <th>Description</th>
+              <th>Date</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="rpt-tbody"></tbody>
+        </table>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    /* JS added in subsequent tasks */
+  </script>
+
+</body>
+</html>
