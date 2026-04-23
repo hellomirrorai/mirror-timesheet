@@ -353,8 +353,8 @@
   <!-- Top Bar -->
   <div id="topbar">
     <h1 id="topbar-title">mirror. Timesheet</h1>
-    <label id="btn-upload" class="btn-like" for="file-input">Load CSV</label>
-    <input type="file" id="file-input" accept=".csv" style="display:none">
+    <button id="btn-upload" class="btn-like" onclick="document.getElementById('file-input').click()">&#128206; Load CSV</button>
+    <input type="file" id="file-input" accept=".csv" style="position:absolute;width:0;height:0;opacity:0;overflow:hidden">
     <button id="btn-print">Export PDF</button>
   </div>
 
@@ -368,25 +368,34 @@
     <aside id="sidebar">
 
       <div id="toggl-section">
-        <h2 style="margin-bottom:10px;">Toggl Live</h2>
-        <div class="filter-group" style="margin-bottom:8px;">
-          <span class="filter-label">API Token</span>
-          <input type="password" id="toggl-token" placeholder="from Profile → API Token" autocomplete="off">
+        <button id="toggl-toggle" onclick="
+          var b=document.getElementById('toggl-body');
+          var open=b.style.display!=='none';
+          b.style.display=open?'none':'block';
+          this.querySelector('.toggl-chevron').textContent=open?'▶':'▼';
+        " style="width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;border-bottom:1px solid #ddd;padding:0 0 8px 0;margin-bottom:8px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#333;">
+          Toggl Live <span class="toggl-chevron">▶</span>
+        </button>
+        <div id="toggl-body" style="display:none;">
+          <div class="filter-group" style="margin-bottom:8px;">
+            <span class="filter-label">API Token</span>
+            <input type="password" id="toggl-token" placeholder="from Profile → API Token" autocomplete="off">
+          </div>
+          <div class="filter-group" style="margin-bottom:8px;">
+            <span class="filter-label">Workspace ID</span>
+            <input type="text" id="toggl-workspace" placeholder="e.g. 1234567" autocomplete="off">
+          </div>
+          <div class="filter-group" style="margin-bottom:8px;">
+            <span class="filter-label">From</span>
+            <input type="date" id="toggl-from">
+          </div>
+          <div class="filter-group" style="margin-bottom:8px;">
+            <span class="filter-label">To</span>
+            <input type="date" id="toggl-to">
+          </div>
+          <button id="btn-toggl-load" style="width:100%;margin-bottom:6px;">&#9654; Load from Toggl</button>
+          <div id="toggl-status"></div>
         </div>
-        <div class="filter-group" style="margin-bottom:8px;">
-          <span class="filter-label">Workspace ID</span>
-          <input type="text" id="toggl-workspace" placeholder="e.g. 1234567" autocomplete="off">
-        </div>
-        <div class="filter-group" style="margin-bottom:8px;">
-          <span class="filter-label">From</span>
-          <input type="date" id="toggl-from">
-        </div>
-        <div class="filter-group" style="margin-bottom:8px;">
-          <span class="filter-label">To</span>
-          <input type="date" id="toggl-to">
-        </div>
-        <button id="btn-toggl-load" style="width:100%;margin-bottom:6px;">&#9654; Load from Toggl</button>
-        <div id="toggl-status"></div>
         <hr style="margin:14px 0;border:none;border-top:1px solid #e0e0e0;">
       </div>
 
@@ -598,7 +607,7 @@
       e.preventDefault();
       elDropOverlay.classList.remove('active');
       const f = e.dataTransfer.files[0];
-      if (f && f.name.endsWith('.csv')) readFile(f);
+      if (f && f.name.toLowerCase().endsWith('.csv')) readFile(f);
     });
 
     function readFile(file) {
