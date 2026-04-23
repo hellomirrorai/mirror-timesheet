@@ -604,6 +604,122 @@
         .filter(cb => cb.checked).map(cb => cb.value);
     }
 
+    /* ══════════════════════════════════
+       FILTER LOGIC
+       ══════════════════════════════════ */
+
+    function getFilteredRows() {
+      const from    = document.getElementById('filter-date-from').value;
+      const to      = document.getElementById('filter-date-to').value;
+      const project = document.getElementById('filter-project').value;
+      const members = new Set(getChecked('filter-members'));
+      const clients = new Set(getChecked('filter-clients'));
+      const tags    = new Set(getChecked('filter-tags'));
+
+      return allRows.filter(r => {
+        const d = r['Start date'];
+        if (from && d < from) return false;
+        if (to   && d > to)   return false;
+        if (project && r['Project'] !== project) return false;
+        if (members.size && !members.has(r['User']))   return false;
+        if (clients.size && !clients.has(r['Client'])) return false;
+        if (tags.size    && !tags.has(r['Tags']))       return false;
+        return true;
+      });
+    }
+
+    /* ══════════════════════════════════
+       REPORT RENDERER
+       ══════════════════════════════════ */
+
+    function renderReport() {
+      const elEmpty  = document.getElementById('empty-state');
+      const elReport = document.getElementById('report');
+
+      if (!allRows.length) {
+        elEmpty.style.display  = 'flex';
+        elReport.style.display = 'none';
+        return;
+      }
+      elEmpty.style.display  = 'none';
+      elReport.style.display = 'block';
+
+      const rows = getFilteredRows();
+
+      // ── Summary ──
+      const project = document.getElementById('filter-project').value
+        || (rows.length ? rows[0]['Project'] : '');
+      document.getElementById('rpt-project').textContent = project;
+
+      const dates = rows.map(r => r['Start date']).filter(Boolean).sort();
+      if (dates.length) {
+        const lo = fmtDate(dates[0]);
+        const hi = fmtDate(dates[dates.length - 1]);
+        document.getElementById('rpt-period').textContent = lo === hi ? lo : lo + ' \u2013 ' + hi;
+      } else {
+        document.getElementById('rpt-period').textContent = '';
+      }
+
+      const totalSec = rows.reduce((s, r) => s + durationToSec(r['Duration']), 0);
+      document.getElementById('rpt-total').textContent = secToHHMM(totalSec);
+
+      // ── Table ──
+      const sorted = [...rows].sort((a, b) => {
+        const tp = (a['Tags'] || '').localeCompare(b['Tags'] || '');
+        if (tp) return tp;
+        const td = (a['Start date'] || '').localeCompare(b['Start date'] || '');
+        if (td) return td;
+        return (a['Start time'] || '').localeCompare(b['Start time'] || '');
+      });
+
+      const tbody = document.getElementById('rpt-tbody');
+      while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+      let lastPhase = null;
+      let groupBuf  = [];
+
+      function flushGroup() {
+        groupBuf.forEach((row, i) => {
+          const tr = document.createElement('tr');
+          tr.className = 'entry-row' + (i === 0 ? ' group-start' : '');
+
+          function td(text) {
+            const el = document.createElement('td');
+            el.textContent = text;
+            return el;
+          }
+
+          tr.appendChild(td(i === 0 ? (row['Tags'] || '—') : ''));
+          tr.appendChild(td(row['User'] || ''));
+          tr.appendChild(td(row['Description'] || ''));
+          tr.appendChild(td(fmtDate(row['Start date'])));
+          tr.appendChild(td(fmtTime(row['Start time'])));
+          tr.appendChild(td(fmtTime(row['End time'])));
+          tr.appendChild(td(fmtTime(row['Duration'])));
+          tbody.appendChild(tr);
+        });
+        groupBuf = [];
+      }
+
+      sorted.forEach(row => {
+        const phase = row['Tags'] || '';
+        if (phase !== lastPhase) { flushGroup(); lastPhase = phase; }
+        groupBuf.push(row);
+      });
+      flushGroup();
+
+      // Total row
+      const trTotal = document.createElement('tr');
+      trTotal.className = 'total-row';
+      const tdLabel = document.createElement('td');
+      tdLabel.colSpan = 6;
+      tdLabel.textContent = 'TOTAL';
+      const tdVal = document.createElement('td');
+      tdVal.textContent = secToHHMM(totalSec);
+      trTotal.appendChild(tdLabel);
+      trTotal.appendChild(tdVal);
+      tbody.appendChild(trTotal);
+    }
   </script>
 
 </body>
