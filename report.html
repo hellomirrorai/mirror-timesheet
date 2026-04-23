@@ -107,6 +107,21 @@
       margin-top: 4px;
     }
 
+    #toggl-token, #toggl-workspace {
+      width: 100%;
+      padding: 4px 6px;
+      font-size: 12px;
+      border: 1px solid #ccc;
+      margin-bottom: 0;
+      font-family: inherit;
+    }
+    #toggl-status {
+      font-size: 11px;
+      color: #555;
+      min-height: 14px;
+      line-height: 1.4;
+    }
+
     .checkbox-list {
       display: flex;
       flex-direction: column;
@@ -325,6 +340,7 @@
       .entries-table tr {
         page-break-inside: avoid;
       }
+      #toggl-section { display: none !important; }
     }
   </style>
 </head>
@@ -346,6 +362,29 @@
 
     <!-- Sidebar -->
     <aside id="sidebar">
+
+      <div id="toggl-section">
+        <h2 style="margin-bottom:10px;">Toggl Live</h2>
+        <div class="filter-group" style="margin-bottom:8px;">
+          <span class="filter-label">API Token</span>
+          <input type="password" id="toggl-token" placeholder="da Profilo → API Token" autocomplete="off">
+        </div>
+        <div class="filter-group" style="margin-bottom:8px;">
+          <span class="filter-label">Workspace ID</span>
+          <input type="text" id="toggl-workspace" placeholder="es. 1234567" autocomplete="off">
+        </div>
+        <div class="filter-group" style="margin-bottom:8px;">
+          <span class="filter-label">Da</span>
+          <input type="date" id="toggl-from">
+        </div>
+        <div class="filter-group" style="margin-bottom:8px;">
+          <span class="filter-label">A</span>
+          <input type="date" id="toggl-to">
+        </div>
+        <button id="btn-toggl-load" style="width:100%;margin-bottom:6px;">&#9654; Carica da Toggl</button>
+        <div id="toggl-status"></div>
+        <hr style="margin:14px 0;border:none;border-top:1px solid #e0e0e0;">
+      </div>
 
       <!-- Filter: Date -->
       <div class="filter-group">
@@ -527,6 +566,142 @@
     }
 
     document.getElementById('btn-print').addEventListener('click', () => window.print());
+
+    /* ══════════════════════════════════
+       TOGGL LIVE API
+       ══════════════════════════════════ */
+
+    document.getElementById('btn-toggl-load').addEventListener('click', loadFromToggl);
+
+    async function loadFromToggl() {
+      const token       = document.getElementById('toggl-token').value.trim();
+      const workspaceId = document.getElementById('toggl-workspace').value.trim();
+      const startDate   = document.getElementById('toggl-from').value;
+      const endDate     = document.getElementById('toggl-to').value;
+      const statusEl    = document.getElementById('toggl-status');
+
+      if (!token || !workspaceId || !startDate || !endDate) {
+        statusEl.textContent = 'Compila tutti i campi.';
+        return;
+      }
+
+      statusEl.textContent = 'Connessione a Toggl...';
+      document.getElementById('btn-toggl-load').disabled = true;
+
+      const auth    = 'Basic ' + btoa(token + ':api_token');
+      const base    = 'https://api.track.toggl.com';
+      const headers = { 'Authorization': auth, 'Content-Type': 'application/json' };
+
+      try {
+        // ── 1. Projects (to resolve project_id → name + client_id) ──
+        statusEl.textContent = 'Carico progetti...';
+        const projResp = await fetch(
+          base + '/api/v9/workspaces/' + workspaceId + '/projects?active=both&per_page=200',
+          { headers }
+        );
+        if (!projResp.ok) throw new Error('Progetti: ' + projResp.status + ' ' + projResp.statusText);
+        const projects = await projResp.json();
+        const projMap = {};
+        projects.forEach(p => { projMap[p.id] = { name: p.name || '', clientId: p.client_id }; });
+
+        // ── 2. Clients (to resolve client_id → name) ──
+        statusEl.textContent = 'Carico clienti...';
+        const cliResp = await fetch(
+          base + '/api/v9/workspaces/' + workspaceId + '/clients',
+          { headers }
+        );
+        const clientMap = {};
+        if (cliResp.ok) {
+          const clients = await cliResp.json();
+          if (Array.isArray(clients)) clients.forEach(c => { clientMap[c.id] = c.name || ''; });
+        }
+
+        // ── 3. Time entries (paginated via X-Next-Row-Number) ──
+        statusEl.textContent = 'Carico voci...';
+        const rawEntries = [];
+        let firstRow = 1;
+
+        while (true) {
+          const resp = await fetch(
+            base + '/reports/api/v3/workspace/' + workspaceId + '/search/time_entries',
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                start_date: startDate,
+                end_date:   endDate,
+                page_size:  50,
+                first_row_number: firstRow
+              })
+            }
+          );
+          if (!resp.ok) throw new Error('Voci: ' + resp.status + ' ' + resp.statusText);
+          const page = await resp.json();
+          if (!Array.isArray(page) || page.length === 0) break;
+          rawEntries.push(...page);
+          const nextHeader = resp.headers.get('X-Next-Row-Number');
+          if (!nextHeader) break;
+          firstRow = parseInt(nextHeader, 10);
+          if (isNaN(firstRow)) break;
+        }
+
+        // ── 4. Map to allRows format ──
+        allRows = [];
+        rawEntries.forEach(entry => {
+          const proj        = projMap[entry.project_id] || {};
+          const projectName = proj.name || '';
+          const clientName  = clientMap[proj.clientId] || '';
+          const userName    = entry.username || '';
+          const tag         = Array.isArray(entry.tags) && entry.tags.length ? entry.tags[0] : '';
+          const desc        = entry.description || '';
+
+          (entry.time_entries || []).forEach(te => {
+            if (!te.start) return;
+            const start = new Date(te.start);
+            const stop  = te.stop ? new Date(te.stop) : start;
+            const sec   = te.seconds || 0;
+            const hh    = String(Math.floor(sec / 3600)).padStart(2, '0');
+            const mm    = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+            const ss    = String(sec % 60).padStart(2, '0');
+
+            // Format date/time in local timezone
+            const pad = n => String(n).padStart(2, '0');
+            const startDateStr = start.getFullYear() + '-' + pad(start.getMonth()+1) + '-' + pad(start.getDate());
+            const startTimeStr = pad(start.getHours()) + ':' + pad(start.getMinutes()) + ':' + pad(start.getSeconds());
+            const endDateStr   = stop.getFullYear()  + '-' + pad(stop.getMonth()+1)  + '-' + pad(stop.getDate());
+            const endTimeStr   = pad(stop.getHours())  + ':' + pad(stop.getMinutes())  + ':' + pad(stop.getSeconds());
+
+            allRows.push({
+              'User':       userName,
+              'Email':      '',
+              'Client':     clientName,
+              'Project':    projectName,
+              'Task':       '',
+              'Description': desc,
+              'Billable':   entry.billable ? 'Yes' : 'No',
+              'Start date': startDateStr,
+              'Start time': startTimeStr,
+              'End date':   endDateStr,
+              'End time':   endTimeStr,
+              'Duration':   hh + ':' + mm + ':' + ss,
+              'Tags':       tag
+            });
+          });
+        });
+
+        statusEl.textContent = allRows.length + ' voci caricate.';
+        populateFilters();
+        renderReport();
+
+      } catch (err) {
+        statusEl.textContent = 'Errore: ' + err.message;
+        if (err.message.includes('Failed to fetch') || err.message.includes('CORS')) {
+          statusEl.textContent += ' (CORS: apri il file da un server locale — vedi sotto)';
+        }
+      } finally {
+        document.getElementById('btn-toggl-load').disabled = false;
+      }
+    }
 
     /* ══════════════════════════════════
        POPULATE FILTERS
