@@ -527,6 +527,83 @@
     }
 
     document.getElementById('btn-print').addEventListener('click', () => window.print());
+
+    /* ══════════════════════════════════
+       POPULATE FILTERS
+       ══════════════════════════════════ */
+
+    let filtersWired = false;
+
+    function populateFilters() {
+      const rows = allRows;
+
+      // Date range — auto-fill from data
+      const dates = rows.map(r => r['Start date']).filter(Boolean).sort();
+      if (dates.length) {
+        document.getElementById('filter-date-from').value = dates[0];
+        document.getElementById('filter-date-to').value   = dates[dates.length - 1];
+      }
+
+      // Project dropdown
+      const sel = document.getElementById('filter-project');
+      while (sel.firstChild) sel.removeChild(sel.firstChild);
+      const allOpt = document.createElement('option');
+      allOpt.value = '';
+      allOpt.textContent = '— tutti —';
+      sel.appendChild(allOpt);
+      unique(rows.map(r => r['Project'])).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = p;
+        sel.appendChild(opt);
+      });
+      const projects = unique(rows.map(r => r['Project']));
+      if (projects.length === 1) sel.value = projects[0];
+
+      // Checkbox groups
+      buildCheckboxes('filter-members', unique(rows.map(r => r['User'])));
+      buildCheckboxes('filter-clients', unique(rows.map(r => r['Client'])));
+      buildCheckboxes('filter-tags',    unique(rows.map(r => r['Tags'])));
+
+      if (!filtersWired) {
+        filtersWired = true;
+        document.getElementById('filter-date-from').addEventListener('change', renderReport);
+        document.getElementById('filter-date-to').addEventListener('change', renderReport);
+        document.getElementById('filter-project').addEventListener('change', renderReport);
+
+        document.querySelectorAll('.toggle-all').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const map = { members: 'filter-members', clients: 'filter-clients', tags: 'filter-tags' };
+            const cbs = document.querySelectorAll('#' + map[btn.dataset.target] + ' input');
+            const allChecked = [...cbs].every(cb => cb.checked);
+            cbs.forEach(cb => { cb.checked = !allChecked; });
+            renderReport();
+          });
+        });
+      }
+    }
+
+    function buildCheckboxes(containerId, values) {
+      const container = document.getElementById(containerId);
+      while (container.firstChild) container.removeChild(container.firstChild);
+      values.forEach(val => {
+        const lbl = document.createElement('label');
+        const cb  = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = val;
+        cb.checked = true;
+        cb.addEventListener('change', renderReport);
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode('\u00a0' + (val || '—')));
+        container.appendChild(lbl);
+      });
+    }
+
+    function getChecked(containerId) {
+      return [...document.querySelectorAll('#' + containerId + ' input[type=checkbox]')]
+        .filter(cb => cb.checked).map(cb => cb.value);
+    }
+
   </script>
 
 </body>
