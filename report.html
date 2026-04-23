@@ -621,9 +621,9 @@
         if (from && d < from) return false;
         if (to   && d > to)   return false;
         if (project && r['Project'] !== project) return false;
-        if (members.size && !members.has(r['User']))   return false;
-        if (clients.size && !clients.has(r['Client'])) return false;
-        if (tags.size    && !tags.has(r['Tags']))       return false;
+        if (!members.has(r['User']))   return false;
+        if (!clients.has(r['Client'])) return false;
+        if (!tags.has(r['Tags']))       return false;
         return true;
       });
     }
