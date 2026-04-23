@@ -570,8 +570,7 @@
     function parseRoleConfig() {
       const text = document.getElementById('role-config').value;
       const roleMap = {}; // memberName → roleName
-      text.split('
-').forEach(line => {
+      text.split('\n').forEach(line => {
         const colonIdx = line.indexOf(':');
         if (colonIdx < 0) return;
         const role = line.slice(0, colonIdx).trim();
@@ -750,8 +749,8 @@
 
       } catch (err) {
         statusEl.textContent = 'Error: ' + err.message;
-        if (err.message.includes('Failed to fetch') || err.message.includes('CORS')) {
-          statusEl.textContent += ' (CORS: open the file from a local server)';
+        if (err.message.includes('Failed to fetch') || err.message.toLowerCase().includes('cors') || err.message.includes('NetworkError')) {
+          statusEl.textContent = 'CORS error: the Toggl API cannot be called from a file:// URL. Run this command in Terminal, then reopen the app at http://localhost:8000 — cd "' + window.location.pathname.replace(/\/[^/]+$/, '') + '" && python3 -m http.server 8000';
         }
       } finally {
         document.getElementById('btn-toggl-load').disabled = false;
