@@ -644,14 +644,15 @@
 
       const auth    = 'Basic ' + btoa(token + ':api_token');
       const base    = 'https://api.track.toggl.com';
-      const headers = { 'Authorization': auth, 'Content-Type': 'application/json' };
+      const getHeaders  = { 'Authorization': auth };
+      const postHeaders = { 'Authorization': auth, 'Content-Type': 'application/json' };
 
       try {
         // ── 1. Projects (to resolve project_id → name + client_id) ──
         statusEl.textContent = 'Loading projects...';
         const projResp = await fetch(
           base + '/api/v9/workspaces/' + workspaceId + '/projects?active=both&per_page=200',
-          { headers }
+          { headers: getHeaders }
         );
         if (!projResp.ok) throw new Error('Projects: ' + projResp.status + ' ' + projResp.statusText);
         const projects = await projResp.json();
@@ -662,7 +663,7 @@
         statusEl.textContent = 'Loading clients...';
         const cliResp = await fetch(
           base + '/api/v9/workspaces/' + workspaceId + '/clients',
-          { headers }
+          { headers: getHeaders }
         );
         const clientMap = {};
         if (cliResp.ok) {
@@ -680,7 +681,7 @@
             base + '/reports/api/v3/workspace/' + workspaceId + '/search/time_entries',
             {
               method: 'POST',
-              headers,
+              headers: postHeaders,
               body: JSON.stringify({
                 start_date: startDate,
                 end_date:   endDate,
@@ -750,7 +751,11 @@
       } catch (err) {
         statusEl.textContent = 'Error: ' + err.message;
         if (err.message.includes('Failed to fetch') || err.message.toLowerCase().includes('cors') || err.message.includes('NetworkError')) {
-          statusEl.textContent = 'CORS error: the Toggl API cannot be called from a file:// URL. Run this command in Terminal, then reopen the app at http://localhost:8000 — cd "' + window.location.pathname.replace(/\/[^/]+$/, '') + '" && python3 -m http.server 8000';
+          if (window.location.protocol === 'file:') {
+            statusEl.textContent = 'CORS error: open via a local server instead of file://. Run: cd "' + window.location.pathname.replace(/\/[^/]+$/, '') + '" && python3 -m http.server 8000';
+          } else {
+            statusEl.textContent = 'Network error — check your API token and workspace ID, then try again. (' + err.message + ')';
+          }
         }
       } finally {
         document.getElementById('btn-toggl-load').disabled = false;
