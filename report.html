@@ -383,7 +383,7 @@
           </div>
           <div class="filter-group" style="margin-bottom:8px;">
             <span class="filter-label">Workspace ID</span>
-            <input type="text" id="toggl-workspace" placeholder="e.g. 1234567" autocomplete="off">
+            <input type="text" id="toggl-workspace" placeholder="e.g. 1234567 (auto-detected if left blank)" autocomplete="off">
           </div>
           <div class="filter-group" style="margin-bottom:8px;">
             <span class="filter-label">From</span>
@@ -436,9 +436,9 @@
 
       <div class="filter-group">
         <span class="filter-label">Roles</span>
-        <small style="display:block;font-size:10px;color:#888;margin-bottom:4px;">One role per line: RoleName: Person1, Person2</small>
-        <textarea id="role-config" rows="5" style="width:100%;font-size:11px;border:1px solid #ccc;padding:4px;font-family:inherit;resize:vertical;" placeholder="e.g.&#10;Architects: John, Jane&#10;Heads: Alice&#10;CEO: Bob"></textarea>
-        <button onclick="renderReport()" style="width:100%;margin-top:4px;font-size:11px;padding:4px;">Apply Roles</button>
+        <div id="roles-builder" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;"></div>
+        <button onclick="addRoleCard()" style="width:100%;font-size:11px;padding:4px;margin-bottom:4px;">+ Add Role</button>
+        <button onclick="renderReport()" style="width:100%;font-size:11px;padding:4px;">Apply Roles</button>
       </div>
 
     </aside>
@@ -517,7 +517,28 @@
         headers.forEach((h, idx) => { row[h] = (vals[idx] || '').trim(); });
         rows.push(row);
       }
-      return rows;
+      return normalizeCSV(rows, headers);
+    }
+
+    // Toggl exports two formats:
+    //   Legacy: User, Email, Client, Project, Task, Description, Billable, Start date, Start time, End date, End time, Duration, Tags
+    //   New:    Description, Duration, Member, Email, Project, Start date, Stop date, Start time, Stop time, Tags
+    // This normalizes both to the internal format (legacy keys).
+    function normalizeCSV(rows, headers) {
+      if (!headers.includes('Member')) return rows; // already legacy format
+      return rows.map(r => ({
+        'User':        r['Member']      || '',
+        'Email':       r['Email']       || '',
+        'Client':      '',
+        'Project':     r['Project']     || '',
+        'Description': r['Description'] || '',
+        'Start date':  r['Start date']  || '',
+        'Start time':  r['Start time']  || '',
+        'End date':    r['Stop date']   || '',
+        'End time':    r['Stop time']   || '',
+        'Duration':    r['Duration']    || '',
+        'Tags':        (r['Tags'] === '-' ? '' : r['Tags']) || ''
+      }));
     }
 
     function splitCSVLine(line) {
@@ -567,15 +588,87 @@
       return [...new Set(arr.filter(v => v !== undefined))].sort();
     }
 
+    /* ══════════════════════════════════
+       ROLE BUILDER
+       ══════════════════════════════════ */
+
+    let roleCards = [];
+
+    function addRoleCard(roleName, members) {
+      roleCards.push({ id: 'rc' + Date.now() + Math.random().toString(36).slice(2), role: roleName || '', members: members ? [...members] : [] });
+      renderRoleCards();
+    }
+
+    function removeRoleCard(id) {
+      roleCards = roleCards.filter(c => c.id !== id);
+      renderRoleCards();
+    }
+
+    function removeMemberFromCard(id, member) {
+      const card = roleCards.find(c => c.id === id);
+      if (card) { card.members = card.members.filter(m => m !== member); renderRoleCards(); }
+    }
+
+    function refreshRoleBuilder() { renderRoleCards(); }
+
+    function renderRoleCards() {
+      const builder = document.getElementById('roles-builder');
+      if (!builder) return;
+      while (builder.firstChild) builder.removeChild(builder.firstChild);
+      const available = unique(allRows.map(r => r['User']).filter(Boolean));
+      roleCards.forEach(card => {
+        const div = document.createElement('div');
+        div.style.cssText = 'border:1px solid #e0e0e0;border-radius:3px;padding:6px;background:#fafafa;';
+
+        // Role name row + delete button
+        const nameRow = document.createElement('div');
+        nameRow.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:5px;';
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.placeholder = 'Role name (e.g. Architect)'; inp.value = card.role;
+        inp.style.cssText = 'flex:1;font-size:11px;border:1px solid #ccc;padding:3px 4px;font-family:inherit;border-radius:2px;';
+        inp.oninput = () => { card.role = inp.value; };
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '×'; delBtn.title = 'Remove role';
+        delBtn.style.cssText = 'font-size:14px;line-height:1;padding:0 6px;cursor:pointer;border:1px solid #ccc;border-radius:2px;background:#fff;flex-shrink:0;';
+        delBtn.onclick = () => removeRoleCard(card.id);
+        nameRow.append(inp, delBtn);
+
+        // People chips
+        const chipsDiv = document.createElement('div');
+        chipsDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px;';
+        card.members.forEach(m => {
+          const chip = document.createElement('span');
+          chip.style.cssText = 'background:#e8e8e8;border-radius:3px;padding:2px 5px;font-size:10px;display:inline-flex;align-items:center;gap:3px;';
+          chip.appendChild(document.createTextNode(m));
+          const x = document.createElement('span');
+          x.textContent = '×'; x.style.cssText = 'cursor:pointer;opacity:0.6;font-size:11px;';
+          x.onclick = () => removeMemberFromCard(card.id, m);
+          chip.appendChild(x);
+          chipsDiv.appendChild(chip);
+        });
+
+        div.append(nameRow, chipsDiv);
+
+        // Add person dropdown (populated from loaded data)
+        const remaining = available.filter(m => !card.members.includes(m));
+        if (remaining.length > 0) {
+          const sel = document.createElement('select');
+          sel.style.cssText = 'width:100%;font-size:11px;padding:2px;font-family:inherit;border:1px solid #ccc;border-radius:2px;';
+          const opt0 = document.createElement('option'); opt0.value = ''; opt0.textContent = '+ add person';
+          sel.appendChild(opt0);
+          remaining.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
+          sel.onchange = () => { if (sel.value) { card.members.push(sel.value); renderRoleCards(); } };
+          div.appendChild(sel);
+        }
+        builder.appendChild(div);
+      });
+    }
+
     function parseRoleConfig() {
-      const text = document.getElementById('role-config').value;
       const roleMap = {}; // memberName → roleName
-      text.split('\n').forEach(line => {
-        const colonIdx = line.indexOf(':');
-        if (colonIdx < 0) return;
-        const role = line.slice(0, colonIdx).trim();
-        const members = line.slice(colonIdx + 1).split(',').map(m => m.trim()).filter(Boolean);
-        members.forEach(m => { roleMap[m] = role; });
+      roleCards.forEach(card => {
+        if (!card.role) return;
+        card.members.forEach(m => { roleMap[m] = card.role; });
       });
       return roleMap;
     }
@@ -634,8 +727,8 @@
       const endDate     = document.getElementById('toggl-to').value;
       const statusEl    = document.getElementById('toggl-status');
 
-      if (!token || !workspaceId || !startDate || !endDate) {
-        statusEl.textContent = 'Please fill in all fields.';
+      if (!token || !startDate || !endDate) {
+        statusEl.textContent = 'Please fill in token and date range.';
         return;
       }
 
@@ -648,6 +741,16 @@
       const postHeaders = { 'Authorization': auth, 'Content-Type': 'application/json' };
 
       try {
+        // ── 0. Auto-detect workspace if not provided ──
+        if (!workspaceId) {
+          statusEl.textContent = 'Detecting workspace...';
+          const meResp = await fetch(base + '/api/v9/me', { headers: getHeaders });
+          if (!meResp.ok) throw new Error('Token invalid (' + meResp.status + ') — check your API token at toggl.com → Profile');
+          const me = await meResp.json();
+          workspaceId = String(me.default_workspace_id);
+          document.getElementById('toggl-workspace').value = workspaceId;
+        }
+
         // ── 1. Projects (to resolve project_id → name + client_id) ──
         statusEl.textContent = 'Loading projects...';
         const projResp = await fetch(
@@ -798,6 +901,7 @@
       buildCheckboxes('filter-members', unique(rows.map(r => r['User'])));
       buildCheckboxes('filter-clients', unique(rows.map(r => r['Client'])));
       buildCheckboxes('filter-tags',    unique(rows.map(r => r['Tags'])));
+      refreshRoleBuilder();
 
       if (!filtersWired) {
         filtersWired = true;
