@@ -397,6 +397,10 @@
           <button id="btn-toggl-load" style="width:100%;margin-bottom:6px;">&#9654; Load from Toggl</button>
           <div id="toggl-status"></div>
         </div>
+        <div style="margin-top:8px;font-size:10px;color:#888;line-height:1.5;">
+          API blocked by browser — use CSV instead:<br>
+          <a href="https://track.toggl.com/reports/detailed" target="_blank" style="color:#555;">toggl.com → Reports → Detailed → Export CSV</a>
+        </div>
         <hr style="margin:14px 0;border:none;border-top:1px solid #e0e0e0;">
       </div>
 
@@ -745,7 +749,7 @@
         document.getElementById('toggl-workspace').value = wsId;
         statusEl.textContent = '✓ ' + (me.fullname || me.email) + ' — workspace ' + wsId;
       } catch (e) {
-        statusEl.textContent = 'Connection failed (' + e.message + '). A browser extension (ad-blocker) may be blocking the request — try disabling it, or use CSV export instead.';
+        statusEl.textContent = 'The Toggl API is blocked by the browser (CORS). Use the CSV export instead — see the link below.';
       }
     }
 
@@ -886,7 +890,7 @@
           if (window.location.protocol === 'file:') {
             statusEl.textContent = 'CORS error: open via a local server instead of file://. Run: cd "' + window.location.pathname.replace(/\/[^/]+$/, '') + '" && python3 -m http.server 8000';
           } else {
-            statusEl.textContent = 'Network error — check your API token and workspace ID, then try again. (' + err.message + ')';
+            statusEl.textContent = 'The Toggl API is blocked by the browser (CORS). Use the CSV export instead — see the link below.';
           }
         }
       } finally {
