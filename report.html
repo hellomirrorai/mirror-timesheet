@@ -107,21 +107,6 @@
       margin-top: 4px;
     }
 
-    #toggl-token, #toggl-workspace {
-      width: 100%;
-      padding: 4px 6px;
-      font-size: 12px;
-      border: 1px solid #ccc;
-      margin-bottom: 0;
-      font-family: inherit;
-    }
-    #toggl-status {
-      font-size: 11px;
-      color: #555;
-      min-height: 14px;
-      line-height: 1.4;
-    }
-
     .checkbox-list {
       display: flex;
       flex-direction: column;
@@ -341,7 +326,6 @@
       .entries-table tr {
         page-break-inside: avoid;
       }
-      #toggl-section { display: none !important; }
     }
 
     #rpt-people-table td:nth-child(2) { width: 12%; }
@@ -366,43 +350,6 @@
 
     <!-- Sidebar -->
     <aside id="sidebar">
-
-      <div id="toggl-section">
-        <button id="toggl-toggle" onclick="
-          var b=document.getElementById('toggl-body');
-          var open=b.style.display!=='none';
-          b.style.display=open?'none':'block';
-          this.querySelector('.toggl-chevron').textContent=open?'▶':'▼';
-        " style="width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;border-bottom:1px solid #ddd;padding:0 0 8px 0;margin-bottom:8px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#333;">
-          Toggl Live <span class="toggl-chevron">▶</span>
-        </button>
-        <div id="toggl-body" style="display:none;">
-          <div class="filter-group" style="margin-bottom:4px;">
-            <span class="filter-label">API Token</span>
-            <input type="password" id="toggl-token" placeholder="from toggl.com → Profile" autocomplete="off">
-          </div>
-          <button onclick="verifyToken()" style="width:100%;font-size:11px;padding:3px;margin-bottom:8px;">&#10003; Verify token &amp; detect workspace</button>
-          <div class="filter-group" style="margin-bottom:8px;">
-            <span class="filter-label">Workspace ID</span>
-            <input type="text" id="toggl-workspace" placeholder="auto-filled after verify" autocomplete="off">
-          </div>
-          <div class="filter-group" style="margin-bottom:8px;">
-            <span class="filter-label">From</span>
-            <input type="date" id="toggl-from">
-          </div>
-          <div class="filter-group" style="margin-bottom:8px;">
-            <span class="filter-label">To</span>
-            <input type="date" id="toggl-to">
-          </div>
-          <button id="btn-toggl-load" style="width:100%;margin-bottom:6px;">&#9654; Load from Toggl</button>
-          <div id="toggl-status"></div>
-        </div>
-        <div style="margin-top:8px;font-size:10px;color:#888;line-height:1.5;">
-          API blocked by browser — use CSV instead:<br>
-          <a href="https://track.toggl.com/reports/detailed" target="_blank" style="color:#555;">toggl.com → Reports → Detailed → Export CSV</a>
-        </div>
-        <hr style="margin:14px 0;border:none;border-top:1px solid #e0e0e0;">
-      </div>
 
       <!-- Filter: Date -->
       <div class="filter-group">
@@ -726,177 +673,6 @@
 
     document.getElementById('btn-print').addEventListener('click', () => window.print());
 
-    /* ══════════════════════════════════
-       TOGGL LIVE API
-       ══════════════════════════════════ */
-
-    document.getElementById('btn-toggl-load').addEventListener('click', loadFromToggl);
-
-    async function verifyToken() {
-      const token    = document.getElementById('toggl-token').value.trim();
-      const statusEl = document.getElementById('toggl-status');
-      if (!token) { statusEl.textContent = 'Enter your API token first.'; return; }
-      statusEl.textContent = 'Verifying...';
-      const auth = 'Basic ' + btoa(token + ':api_token');
-      try {
-        const r = await fetch('https://api.track.toggl.com/api/v9/me', { headers: { 'Authorization': auth } });
-        if (!r.ok) {
-          statusEl.textContent = 'Token rejected (' + r.status + '). Go to toggl.com → Profile → scroll to API Token.';
-          return;
-        }
-        const me = await r.json();
-        const wsId = String(me.default_workspace_id || '');
-        document.getElementById('toggl-workspace').value = wsId;
-        statusEl.textContent = '✓ ' + (me.fullname || me.email) + ' — workspace ' + wsId;
-      } catch (e) {
-        statusEl.textContent = 'The Toggl API is blocked by the browser (CORS). Use the CSV export instead — see the link below.';
-      }
-    }
-
-    async function loadFromToggl() {
-      const token       = document.getElementById('toggl-token').value.trim();
-      const workspaceId = document.getElementById('toggl-workspace').value.trim();
-      const startDate   = document.getElementById('toggl-from').value;
-      const endDate     = document.getElementById('toggl-to').value;
-      const statusEl    = document.getElementById('toggl-status');
-
-      if (!token || !startDate || !endDate) {
-        statusEl.textContent = 'Please fill in token and date range.';
-        return;
-      }
-
-      statusEl.textContent = 'Connecting to Toggl...';
-      document.getElementById('btn-toggl-load').disabled = true;
-
-      const auth    = 'Basic ' + btoa(token + ':api_token');
-      const base    = 'https://api.track.toggl.com';
-      const getHeaders  = { 'Authorization': auth };
-      const postHeaders = { 'Authorization': auth, 'Content-Type': 'application/json' };
-
-      try {
-        // ── 0. Auto-detect workspace if not provided ──
-        if (!workspaceId) {
-          statusEl.textContent = 'Detecting workspace...';
-          const meResp = await fetch(base + '/api/v9/me', { headers: getHeaders });
-          if (!meResp.ok) throw new Error('Token invalid (' + meResp.status + ') — check your API token at toggl.com → Profile');
-          const me = await meResp.json();
-          workspaceId = String(me.default_workspace_id);
-          document.getElementById('toggl-workspace').value = workspaceId;
-        }
-
-        // ── 1. Projects (to resolve project_id → name + client_id) ──
-        statusEl.textContent = 'Loading projects...';
-        const projResp = await fetch(
-          base + '/api/v9/workspaces/' + workspaceId + '/projects?active=both&per_page=200',
-          { headers: getHeaders }
-        );
-        if (!projResp.ok) throw new Error('Projects: ' + projResp.status + ' ' + projResp.statusText);
-        const projects = await projResp.json();
-        const projMap = {};
-        projects.forEach(p => { projMap[p.id] = { name: p.name || '', clientId: p.client_id }; });
-
-        // ── 2. Clients (to resolve client_id → name) ──
-        statusEl.textContent = 'Loading clients...';
-        const cliResp = await fetch(
-          base + '/api/v9/workspaces/' + workspaceId + '/clients',
-          { headers: getHeaders }
-        );
-        const clientMap = {};
-        if (cliResp.ok) {
-          const clients = await cliResp.json();
-          if (Array.isArray(clients)) clients.forEach(c => { clientMap[c.id] = c.name || ''; });
-        }
-
-        // ── 3. Time entries (paginated via X-Next-Row-Number) ──
-        statusEl.textContent = 'Loading entries...';
-        const rawEntries = [];
-        let firstRow = 1;
-
-        while (true) {
-          const resp = await fetch(
-            base + '/reports/api/v3/workspace/' + workspaceId + '/search/time_entries',
-            {
-              method: 'POST',
-              headers: postHeaders,
-              body: JSON.stringify({
-                start_date: startDate,
-                end_date:   endDate,
-                page_size:  50,
-                first_row_number: firstRow
-              })
-            }
-          );
-          if (!resp.ok) throw new Error('Entries: ' + resp.status + ' ' + resp.statusText);
-          const page = await resp.json();
-          if (!Array.isArray(page) || page.length === 0) break;
-          rawEntries.push(...page);
-          const nextHeader = resp.headers.get('X-Next-Row-Number');
-          if (!nextHeader) break;
-          firstRow = parseInt(nextHeader, 10);
-          if (isNaN(firstRow)) break;
-        }
-
-        // ── 4. Map to allRows format ──
-        allRows = [];
-        rawEntries.forEach(entry => {
-          const proj        = projMap[entry.project_id] || {};
-          const projectName = proj.name || '';
-          const clientName  = clientMap[proj.clientId] || '';
-          const userName    = entry.username || '';
-          const tag         = Array.isArray(entry.tags) && entry.tags.length ? entry.tags[0] : '';
-          const desc        = entry.description || '';
-
-          (entry.time_entries || []).forEach(te => {
-            if (!te.start) return;
-            const start = new Date(te.start);
-            const stop  = te.stop ? new Date(te.stop) : start;
-            const sec   = te.seconds || 0;
-            const hh    = String(Math.floor(sec / 3600)).padStart(2, '0');
-            const mm    = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
-            const ss    = String(sec % 60).padStart(2, '0');
-
-            // Format date/time in local timezone
-            const pad = n => String(n).padStart(2, '0');
-            const startDateStr = start.getFullYear() + '-' + pad(start.getMonth()+1) + '-' + pad(start.getDate());
-            const startTimeStr = pad(start.getHours()) + ':' + pad(start.getMinutes()) + ':' + pad(start.getSeconds());
-            const endDateStr   = stop.getFullYear()  + '-' + pad(stop.getMonth()+1)  + '-' + pad(stop.getDate());
-            const endTimeStr   = pad(stop.getHours())  + ':' + pad(stop.getMinutes())  + ':' + pad(stop.getSeconds());
-
-            allRows.push({
-              'User':       userName,
-              'Email':      '',
-              'Client':     clientName,
-              'Project':    projectName,
-              'Task':       '',
-              'Description': desc,
-              'Billable':   entry.billable ? 'Yes' : 'No',
-              'Start date': startDateStr,
-              'Start time': startTimeStr,
-              'End date':   endDateStr,
-              'End time':   endTimeStr,
-              'Duration':   hh + ':' + mm + ':' + ss,
-              'Tags':       tag
-            });
-          });
-        });
-
-        statusEl.textContent = allRows.length + ' entries loaded.';
-        populateFilters();
-        renderReport();
-
-      } catch (err) {
-        statusEl.textContent = 'Error: ' + err.message;
-        if (err.message.includes('Failed to fetch') || err.message.toLowerCase().includes('cors') || err.message.includes('NetworkError')) {
-          if (window.location.protocol === 'file:') {
-            statusEl.textContent = 'CORS error: open via a local server instead of file://. Run: cd "' + window.location.pathname.replace(/\/[^/]+$/, '') + '" && python3 -m http.server 8000';
-          } else {
-            statusEl.textContent = 'The Toggl API is blocked by the browser (CORS). Use the CSV export instead — see the link below.';
-          }
-        }
-      } finally {
-        document.getElementById('btn-toggl-load').disabled = false;
-      }
-    }
 
     /* ══════════════════════════════════
        POPULATE FILTERS
