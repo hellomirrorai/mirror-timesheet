@@ -377,13 +377,14 @@
           Toggl Live <span class="toggl-chevron">▶</span>
         </button>
         <div id="toggl-body" style="display:none;">
-          <div class="filter-group" style="margin-bottom:8px;">
+          <div class="filter-group" style="margin-bottom:4px;">
             <span class="filter-label">API Token</span>
-            <input type="password" id="toggl-token" placeholder="from Profile → API Token" autocomplete="off">
+            <input type="password" id="toggl-token" placeholder="from toggl.com → Profile" autocomplete="off">
           </div>
+          <button onclick="verifyToken()" style="width:100%;font-size:11px;padding:3px;margin-bottom:8px;">&#10003; Verify token &amp; detect workspace</button>
           <div class="filter-group" style="margin-bottom:8px;">
             <span class="filter-label">Workspace ID</span>
-            <input type="text" id="toggl-workspace" placeholder="e.g. 1234567 (auto-detected if left blank)" autocomplete="off">
+            <input type="text" id="toggl-workspace" placeholder="auto-filled after verify" autocomplete="off">
           </div>
           <div class="filter-group" style="margin-bottom:8px;">
             <span class="filter-label">From</span>
@@ -726,6 +727,27 @@
        ══════════════════════════════════ */
 
     document.getElementById('btn-toggl-load').addEventListener('click', loadFromToggl);
+
+    async function verifyToken() {
+      const token    = document.getElementById('toggl-token').value.trim();
+      const statusEl = document.getElementById('toggl-status');
+      if (!token) { statusEl.textContent = 'Enter your API token first.'; return; }
+      statusEl.textContent = 'Verifying...';
+      const auth = 'Basic ' + btoa(token + ':api_token');
+      try {
+        const r = await fetch('https://api.track.toggl.com/api/v9/me', { headers: { 'Authorization': auth } });
+        if (!r.ok) {
+          statusEl.textContent = 'Token rejected (' + r.status + '). Go to toggl.com → Profile → scroll to API Token.';
+          return;
+        }
+        const me = await r.json();
+        const wsId = String(me.default_workspace_id || '');
+        document.getElementById('toggl-workspace').value = wsId;
+        statusEl.textContent = '✓ ' + (me.fullname || me.email) + ' — workspace ' + wsId;
+      } catch (e) {
+        statusEl.textContent = 'Connection failed (' + e.message + '). A browser extension (ad-blocker) may be blocking the request — try disabling it, or use CSV export instead.';
+      }
+    }
 
     async function loadFromToggl() {
       const token       = document.getElementById('toggl-token').value.trim();
