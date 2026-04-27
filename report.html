@@ -436,7 +436,7 @@
 
       <div class="filter-group">
         <span class="filter-label">Roles</span>
-        <div id="roles-builder" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;"></div>
+        <div id="roles-builder" style="margin-bottom:6px;"></div>
         <button onclick="addRoleCard()" style="width:100%;font-size:11px;padding:4px;margin-bottom:4px;">+ Add Role</button>
         <button onclick="renderReport()" style="width:100%;font-size:11px;padding:4px;">Apply Roles</button>
       </div>
@@ -616,51 +616,58 @@
       if (!builder) return;
       while (builder.firstChild) builder.removeChild(builder.firstChild);
       const available = unique(allRows.map(r => r['User']).filter(Boolean));
-      roleCards.forEach(card => {
-        const div = document.createElement('div');
-        div.style.cssText = 'border:1px solid #e0e0e0;border-radius:3px;padding:6px;background:#fafafa;';
 
-        // Role name row + delete button
-        const nameRow = document.createElement('div');
-        nameRow.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:5px;';
+      roleCards.forEach(card => {
+        // One row per role: [name box] [people chips + dropdown]
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:flex-start;gap:6px;margin-bottom:5px;';
+
+        // Left: role name input + delete ×
+        const nameBox = document.createElement('div');
+        nameBox.style.cssText = 'display:flex;align-items:center;gap:2px;flex-shrink:0;width:126px;';
         const inp = document.createElement('input');
-        inp.type = 'text'; inp.placeholder = 'Role name (e.g. Architect)'; inp.value = card.role;
-        inp.style.cssText = 'flex:1;font-size:11px;border:1px solid #ccc;padding:3px 4px;font-family:inherit;border-radius:2px;';
+        inp.type = 'text'; inp.value = card.role; inp.placeholder = 'Role';
+        inp.style.cssText = 'flex:1;min-width:0;font-size:11px;border:1px solid #ccc;padding:3px 4px;font-family:inherit;border-radius:2px;';
         inp.oninput = () => { card.role = inp.value; };
         const delBtn = document.createElement('button');
-        delBtn.textContent = '×'; delBtn.title = 'Remove role';
-        delBtn.style.cssText = 'font-size:14px;line-height:1;padding:0 6px;cursor:pointer;border:1px solid #ccc;border-radius:2px;background:#fff;flex-shrink:0;';
+        delBtn.textContent = '×'; delBtn.title = 'Remove';
+        delBtn.style.cssText = 'font-size:12px;line-height:1;padding:1px 5px;cursor:pointer;border:1px solid #ccc;border-radius:2px;background:#fff;flex-shrink:0;';
         delBtn.onclick = () => removeRoleCard(card.id);
-        nameRow.append(inp, delBtn);
+        nameBox.append(inp, delBtn);
 
-        // People chips
-        const chipsDiv = document.createElement('div');
-        chipsDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px;';
+        // Right: chips for assigned people + add-person dropdown
+        const peopleBox = document.createElement('div');
+        peopleBox.style.cssText = 'flex:1;display:flex;flex-wrap:wrap;align-items:center;gap:3px;';
+
         card.members.forEach(m => {
           const chip = document.createElement('span');
-          chip.style.cssText = 'background:#e8e8e8;border-radius:3px;padding:2px 5px;font-size:10px;display:inline-flex;align-items:center;gap:3px;';
+          chip.style.cssText = 'background:#e8e8e8;border-radius:3px;padding:2px 5px;font-size:10px;display:inline-flex;align-items:center;gap:2px;white-space:nowrap;';
           chip.appendChild(document.createTextNode(m));
           const x = document.createElement('span');
-          x.textContent = '×'; x.style.cssText = 'cursor:pointer;opacity:0.6;font-size:11px;';
+          x.textContent = '×'; x.style.cssText = 'cursor:pointer;opacity:0.55;font-size:11px;line-height:1;';
           x.onclick = () => removeMemberFromCard(card.id, m);
           chip.appendChild(x);
-          chipsDiv.appendChild(chip);
+          peopleBox.appendChild(chip);
         });
 
-        div.append(nameRow, chipsDiv);
-
-        // Add person dropdown (populated from loaded data)
+        // Dropdown: only unassigned members
         const remaining = available.filter(m => !card.members.includes(m));
-        if (remaining.length > 0) {
+        if (available.length === 0 || remaining.length > 0) {
           const sel = document.createElement('select');
-          sel.style.cssText = 'width:100%;font-size:11px;padding:2px;font-family:inherit;border:1px solid #ccc;border-radius:2px;';
-          const opt0 = document.createElement('option'); opt0.value = ''; opt0.textContent = '+ add person';
+          sel.style.cssText = 'font-size:11px;padding:2px;font-family:inherit;border:1px solid #ccc;border-radius:2px;max-width:100px;';
+          const opt0 = document.createElement('option'); opt0.value = '';
+          opt0.textContent = available.length === 0 ? '+ person' : '+ person';
           sel.appendChild(opt0);
-          remaining.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
+          remaining.forEach(m => {
+            const o = document.createElement('option'); o.value = m; o.textContent = m;
+            sel.appendChild(o);
+          });
           sel.onchange = () => { if (sel.value) { card.members.push(sel.value); renderRoleCards(); } };
-          div.appendChild(sel);
+          peopleBox.appendChild(sel);
         }
-        builder.appendChild(div);
+
+        row.append(nameBox, peopleBox);
+        builder.appendChild(row);
       });
     }
 
@@ -1139,6 +1146,9 @@
         });
       });
     }
+
+    // Default roles — pre-populated on load
+    ['CEO', 'Hub Manager Director', 'Architect'].forEach(r => addRoleCard(r));
   </script>
 
 </body>
